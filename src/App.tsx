@@ -16,22 +16,55 @@ import {
   Settings2,
   AlignLeft,
   AlignCenter,
-  AlignJustify
+  AlignJustify,
+  Link as LinkIcon,
+  Globe
 } from "lucide-react";
 import Markdown from 'react-markdown';
 
-// Initialize Gemini API
+// Initialize AI API
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 type SummaryLength = 'short' | 'medium' | 'long';
 
 export default function App() {
   const [inputText, setInputText] = useState('');
+  const [urlInput, setUrlInput] = useState('');
   const [summary, setSummary] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [length, setLength] = useState<SummaryLength>('medium');
+
+  const fetchUrlContent = async () => {
+    if (!urlInput.trim()) return;
+    
+    setIsFetching(true);
+    setError(null);
+    
+    try {
+      const response = await fetch('/api/fetch-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput }),
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to fetch URL content');
+      }
+      
+      const data = await response.json();
+      setInputText(data.content);
+      setUrlInput(''); // Clear URL input after success
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch content.");
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const summarizeText = async () => {
     if (!inputText.trim()) return;
@@ -51,6 +84,8 @@ export default function App() {
       const prompt = `
         Summarize the following text. 
         ${lengthPrompt}
+        
+        CRITICAL INSTRUCTION: Identify the most important keywords, technical terms, or key phrases from the original text and highlight them by making them **bold** within your summary.
         
         Text to summarize:
         ${inputText}
@@ -83,6 +118,7 @@ export default function App() {
 
   const reset = () => {
     setInputText('');
+    setUrlInput('');
     setSummary('');
     setError(null);
   };
@@ -97,8 +133,8 @@ export default function App() {
               <Sparkles size={20} />
             </div>
             <div>
-              <h1 className="text-xl font-semibold tracking-tight">Gemini Summarizer</h1>
-              <p className="text-sm text-gray-500">AI-powered text distillation</p>
+              <h1 className="text-xl font-semibold tracking-tight">AI Summarizer</h1>
+              <p className="text-sm text-gray-500">Intelligent text distillation</p>
             </div>
           </div>
           <button 
@@ -114,19 +150,46 @@ export default function App() {
           {/* Input Section */}
           <section className="flex flex-col gap-4">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-[500px]">
-              <div className="px-4 py-3 border-bottom border-gray-100 flex items-center justify-between bg-gray-50/50">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
-                  <FileText size={16} />
-                  <span>Source Text</span>
+              <div className="px-4 py-3 border-bottom border-gray-100 flex flex-col gap-3 bg-gray-50/50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <FileText size={16} />
+                    <span>Source Content</span>
+                  </div>
+                  <span className="text-xs text-gray-400">{inputText.length} characters</span>
                 </div>
-                <span className="text-xs text-gray-400">{inputText.length} characters</span>
+                
+                {/* URL Input Field */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                    <input
+                      type="url"
+                      value={urlInput}
+                      onChange={(e) => setUrlInput(e.target.value)}
+                      placeholder="Paste a URL to fetch content..."
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-black transition-all"
+                      onKeyDown={(e) => e.key === 'Enter' && fetchUrlContent()}
+                    />
+                  </div>
+                  <button
+                    onClick={fetchUrlContent}
+                    disabled={isFetching || !urlInput.trim()}
+                    className="bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-xs font-medium hover:bg-gray-50 disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    {isFetching ? <Loader2 className="animate-spin" size={12} /> : <LinkIcon size={12} />}
+                    Fetch
+                  </button>
+                </div>
               </div>
+
               <textarea
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
-                placeholder="Paste your long text here..."
+                placeholder="Or paste your long text directly here..."
                 className="flex-1 p-4 resize-none focus:outline-none text-sm leading-relaxed"
               />
+              
               <div className="p-4 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between">
                 <div className="flex bg-white border border-gray-200 rounded-lg p-1">
                   {(['short', 'medium', 'long'] as SummaryLength[]).map((l) => (
@@ -166,6 +229,11 @@ export default function App() {
                 <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
                   <AlignCenter size={16} />
                   <span>AI Summary</span>
+                  {summary && (
+                    <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider border border-yellow-200">
+                      Keywords Highlighted
+                    </span>
+                  )}
                 </div>
                 {summary && (
                   <button
@@ -223,12 +291,8 @@ export default function App() {
 
         {/* Footer info */}
         <footer className="mt-12 pt-8 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-gray-400">
-          <p>© 2026 Gemini Summarizer Agent. Powered by Google AI Studio.</p>
+          <p>© 2026 AI Summarizer Agent.</p>
           <div className="flex items-center gap-6">
-            <span className="flex items-center gap-1.5">
-              <div className="w-2 h-2 bg-green-500 rounded-full" />
-              Gemini 3 Flash
-            </span>
             <span>Privacy Policy</span>
             <span>Terms of Service</span>
           </div>

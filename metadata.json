@@ -1,5 +1,5 @@
 {
-  "name": "Gemini Text Summarizer",
-  "description": "An AI-powered agent that summarizes long text into concise insights using Gemini.",
+  "name": "AI Text Summarizer",
+  "description": "An AI-powered agent that summarizes long text into concise insights.",
   "requestFramePermissions": []
 }

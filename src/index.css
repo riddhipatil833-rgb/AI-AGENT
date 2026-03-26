@@ -21,4 +21,7 @@
   .prose li {
     @apply mb-1;
   }
+  .prose strong {
+    @apply font-semibold text-black bg-yellow-50 px-0.5 rounded-sm;
+  }
 }
